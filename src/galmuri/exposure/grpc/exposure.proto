@@ -1,0 +1,11 @@
+syntax = "proto3";
+package galmuri.v1;
+import "google/protobuf/struct.proto";
+
+// Call request: {operation: string, params: object}.
+// Responses: {ok: true, result: ...} or {ok: false, error: {code, message}}.
+// Caller identity is obtained exclusively from authorization metadata.
+service Exposure {
+  rpc Call(google.protobuf.Struct) returns (google.protobuf.Struct);
+  rpc Describe(google.protobuf.Struct) returns (google.protobuf.Struct);
+}

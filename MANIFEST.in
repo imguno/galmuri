@@ -1,0 +1,14 @@
+include LICENSE README.md README.ko.md CHANGELOG*.md CONTRIBUTING*.md SECURITY*.md RELEASE*.md
+recursive-include src *.py *.proto *.html *.js *.css *.md
+recursive-include guides *.md
+recursive-include skills *.md
+recursive-include tests *.py *.cjs
+recursive-include tools *.py *.md
+prune .git
+prune .venv
+prune .runtime
+prune .verification
+prune docs
+prune build
+prune dist
+global-exclude *.py[cod] *.token *.pem *.key *.sqlite* .env .env.*

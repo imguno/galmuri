@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "galmuri"
+version = "0.1.0"
+description = "Composable source ingestion with lifecycle contracts and transport adapters"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = ["duru>=0.1,<0.2", "fastembed>=0.9,<1", "argon2-cffi>=25.1,<26"]
+
+[project.scripts]
+galmuri = "galmuri.cli:main"
+
+[project.optional-dependencies]
+mcp = ["mcp>=1.20,<2"]
+grpc = ["grpcio>=1.70,<2", "protobuf>=5,<8"]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1", "build>=1,<2"]
+embeddings = ["fastembed>=0.9,<1"]
+postgres = ["psycopg[binary]>=3.2,<4"]
+release = ["build>=1,<2", "twine>=6,<7", "pip-audit>=2.9,<3"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"galmuri.exposure.grpc" = ["*.proto"]
+"galmuri.exposure.dashboard.assets" = ["*.html", "*.js", "*.css"]
+
+[project.urls]
+Homepage = "https://github.com/imguno/galmuri"
+Repository = "https://github.com/imguno/galmuri"
+Issues = "https://github.com/imguno/galmuri/issues"
+
+[tool.setuptools.data-files]
+"share/galmuri/skills/using-galmuri" = ["skills/using-galmuri/SKILL.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "--import-mode=importlib"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

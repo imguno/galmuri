@@ -1,0 +1,260 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  configuration:
+    name: Validate companion source
+    runs-on: ubuntu-latest
+    env:
+      RESOURCE_ACCESS_REPOSITORY: ${{ vars.RESOURCE_ACCESS_REPOSITORY }}
+      RESOURCE_ACCESS_REF: ${{ vars.RESOURCE_ACCESS_REF }}
+    steps:
+      - name: Require a configured repository and immutable commit
+        shell: python
+        run: |
+          import os
+          import re
+          import sys
+
+          checks = {
+              "RESOURCE_ACCESS_REPOSITORY": r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+",
+              "RESOURCE_ACCESS_REF": r"[0-9a-fA-F]{40}",
+          }
+          invalid = [name for name, pattern in checks.items()
+                     if re.fullmatch(pattern, os.environ.get(name, "")) is None]
+          if invalid:
+              print("::error::Configure repository variables " + ", ".join(invalid)
+                    + ". The companion must be a public repository pinned to a trusted commit.")
+              sys.exit(1)
+
+  linux:
+    name: Linux Python ${{ matrix.python }}
+    needs: configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+    defaults:
+      run:
+        working-directory: framework
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: framework_ci
+          POSTGRES_DB: framework_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 127.0.0.1:5432:5432
+        options: >-
+          --health-cmd "pg_isready -U framework_ci -d framework_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Check out framework
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: framework
+          persist-credentials: false
+      - name: Check out the trusted public companion
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: ${{ vars.RESOURCE_ACCESS_REPOSITORY }}
+          ref: ${{ vars.RESOURCE_ACCESS_REF }}
+          path: access
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Set up Node for the dashboard lifecycle tests
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "22"
+      - name: Install the local companion and framework
+        run: python -m pip install -e ../access -e '.[dev,mcp,grpc,postgres]'
+      - name: Check formatting and lint
+        if: matrix.python == '3.13'
+        run: |
+          python -m ruff check src tests tools
+          python -m ruff format --check src tests tools
+      - name: Scan the public Git inputs
+        if: matrix.python == '3.13'
+        run: python -m tools.publication --repository . --output .verification/reports/publication.json
+      - name: Run contracts, integration, transports and UI tests
+        env:
+          FRAMEWORK_POSTGRES_DSN: postgresql://framework_ci@127.0.0.1:5432/framework_ci
+        run: python -m pytest -q --junitxml=.verification/reports/pytest.xml
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: linux-python-${{ matrix.python }}-reports
+          path: |
+            framework/.verification/reports/pytest.xml
+            framework/.verification/reports/publication.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
+
+  windows:
+    name: Windows Python 3.13
+    needs: configuration
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: framework
+    steps:
+      - name: Check out framework
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: framework
+          persist-credentials: false
+      - name: Check out the trusted public companion
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: ${{ vars.RESOURCE_ACCESS_REPOSITORY }}
+          ref: ${{ vars.RESOURCE_ACCESS_REF }}
+          path: access
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+      - name: Set up Node for the dashboard lifecycle tests
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "22"
+      - name: Install the local companion and framework
+        run: python -m pip install -e ../access -e '.[dev,mcp,grpc,postgres]'
+      - name: Run the cross-platform suite
+        run: python -m pytest -q --junitxml=.verification/reports/pytest.xml
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: windows-python-3.13-reports
+          path: framework/.verification/reports/pytest.xml
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
+
+  package:
+    name: Verify built distributions
+    needs: configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: framework
+    steps:
+      - name: Check out framework
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: framework
+          persist-credentials: false
+      - name: Check out the trusted public companion
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: ${{ vars.RESOURCE_ACCESS_REPOSITORY }}
+          ref: ${{ vars.RESOURCE_ACCESS_REF }}
+          path: access
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+      - name: Install build and verification dependencies
+        run: python -m pip install -e ../access -e '.[dev,release,mcp,grpc,postgres]'
+      - name: Build and verify fresh installations
+        run: python -m tools.release --resource-access ../access --output .verification/release
+      - name: Upload package verification reports
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: package-verification
+          path: |
+            framework/.verification/release/checks.json
+            framework/.verification/release/*.whl
+            framework/.verification/release/*.tar.gz
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
+
+  audit:
+    name: Audit installed dependencies
+    needs: configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: framework
+    steps:
+      - name: Check out framework
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: framework
+          persist-credentials: false
+      - name: Check out the trusted public companion
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: ${{ vars.RESOURCE_ACCESS_REPOSITORY }}
+          ref: ${{ vars.RESOURCE_ACCESS_REF }}
+          path: access
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+      - name: Install the local companion, framework and audit tool
+        run: python -m pip install -e ../access -e '.[dev,mcp,grpc,postgres]' pip-audit
+      - name: Audit public dependencies
+        run: python -m tools.dependency_audit --output .verification/reports/dependency-audit.json
+      - name: Upload dependency audit reports
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: dependency-audit
+          path: |
+            framework/.verification/reports/dependency-audit.json
+            framework/.verification/reports/dependency-inventory.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
+
+  required:
+    name: Required checks
+    if: always()
+    needs: [configuration, linux, windows, package, audit]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every verification job to succeed
+        shell: python
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          import json
+          import os
+          import sys
+
+          results = json.loads(os.environ["RESULTS"])
+          failed = [name for name, result in results.items() if result["result"] != "success"]
+          if failed:
+              print("::error::Required verification did not succeed: " + ", ".join(failed))
+              sys.exit(1)

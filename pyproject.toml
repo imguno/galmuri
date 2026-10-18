@@ -25,7 +25,7 @@ dependencies = ["duru>=0.1,<0.2", "fastembed>=0.9,<1", "argon2-cffi>=25.1,<26"]
 galmuri = "galmuri.cli:main"
 
 [project.optional-dependencies]
-mcp = ["mcp>=1.20,<2"]
+mcp = ["mcp>=1.20,<3"]
 grpc = ["grpcio>=1.70,<2", "protobuf>=5,<8"]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1", "build>=1,<2"]
 embeddings = ["fastembed>=0.9,<1"]

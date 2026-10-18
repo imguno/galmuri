@@ -84,7 +84,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Set up Node for the dashboard lifecycle tests
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
       - name: Install the local companion and framework
@@ -139,7 +139,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Set up Node for the dashboard lifecycle tests
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
       - name: Install the local companion and framework

@@ -11,7 +11,7 @@ RAG 애플리케이션은 제공되는 문서·검색 API를 이용해 답변을
 
 **현재 상태:** 개발자 프리뷰입니다. 패키지와 import 이름은 `galmuri`이며,
 명령은 `galmuri` 또는 `python -m galmuri`입니다. 소스 접근에는 독립 라이브러리
-`duru`를 사용합니다.
+[Duru](https://github.com/imguno/duru)를 사용합니다.
 
 ## 목차
 
@@ -44,21 +44,12 @@ RAG 애플리케이션은 제공되는 문서·검색 API를 이용해 답변을
 ## 빠른 시작
 
 **Python 3.12 이상**이 필요합니다. 배포 대상은 Linux이며, Dockerfile은
-Python 3.13을 사용합니다. 로컬 체크아웃을 다음처럼 준비하세요.
-
-```text
-workspace/
-├── access/     # duru 체크아웃
-└── project/    # 프레임워크 체크아웃
-```
-
-`workspace/`에서 실행합니다.
+Python 3.13을 사용합니다. PyPI에 배포된 패키지로 시작하세요.
 
 ```sh
-cd project
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install -e ../access -e '.[mcp,grpc]'
+python -m pip install 'galmuri[mcp,grpc]'
 
 python -m galmuri new ./example
 cd example
@@ -349,9 +340,14 @@ drain이 끝나도 향후 재시도나 실패한 작업이 남을 수 있습니�
 
 ## 개발 참여
 
-프레임워크 체크아웃에서 실행합니다.
+소스를 개발하려면 두 저장소를 나란히 내려받습니다.
 
 ```sh
+git clone https://github.com/imguno/duru.git access
+git clone https://github.com/imguno/galmuri.git project
+cd project
+python3 -m venv .venv
+. .venv/bin/activate
 python -m pip install -e ../access -e '.[mcp,grpc,postgres,dev]'
 python -m pytest -q
 python -m ruff check src tests tools

@@ -2,7 +2,7 @@
 
 [Back to the overview](../README.md)
 
-The CI workflow checks pull requests, pushes and manual runs. It verifies code and
+The CI workflow checks pull requests, pushes to `main` and manual runs. It verifies code and
 builds; it does not publish packages, deploy services or push commits. GitHub-hosted
 execution starts only after the repository is pushed and the companion source is
 configured. Local test results or workflow syntax checks are not evidence that a
@@ -10,9 +10,11 @@ GitHub Actions run has passed.
 
 ## Configure the companion repository first
 
-The framework and duru library are separate repositories. The library
-is not yet published, so CI must use its reviewed source rather than resolve a
-similarly named package from a public index.
+Galmuri and Duru are separate repositories. CI tests a reviewed Duru commit as
+an explicit local input, so its result does not depend on a moving public-index
+release. Only main-branch pushes and pull requests start ordinary CI; a published
+release runs verification through the reusable workflow. This avoids duplicate
+push and pull-request runs for the same contributor branch.
 
 In the framework repository, open **Settings → Secrets and variables → Actions →
 Variables** and configure these repository variables:
@@ -83,7 +85,7 @@ the tests to include remote database coverage. Do not point the test suite at a
 production database. Node.js 22 should be on `PATH` for the dashboard lifecycle
 harness.
 
-The dependency audit runs against installed versions. Only the two unpublished
+The dependency audit runs against installed versions. Only the two editable
 local distributions, `galmuri` and `duru`, are excluded from
 public-index lookup; their public dependencies remain in scope. A failed audit is
 a failing check. A temporary registry outage is not treated as a passing audit.
@@ -98,7 +100,7 @@ a report may have no artifact; its step log remains the source of the failure.
 
 All third-party actions are pinned to complete commit SHAs. Dependabot proposes
 weekly GitHub Actions and Python dependency updates. Its Python configuration
-excludes updates to the unpublished `duru` distribution because its
+excludes updates to the locally tested `duru` distribution because its
 source is selected by the trusted companion commit, not by the public package
 index. This exclusion does not suppress security advisories for other packages.
 

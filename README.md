@@ -10,7 +10,7 @@ transformations, embeddings, or vector storage as needed. Your RAG application
 uses the document and search APIs to build answers.
 
 **Status:** development preview. Install and import `galmuri`; the command is `galmuri`
-or `python -m galmuri`. Source access is provided by the independent `duru` library.
+or `python -m galmuri`. Source access is provided by the independent [Duru](https://github.com/imguno/duru) library.
 
 ## Contents
 
@@ -43,21 +43,12 @@ embeddings and SQLite vectors work with the default sample.
 ## Quick start
 
 Requires **Python 3.12+**. Linux is the deployment target; the Dockerfile uses
-Python 3.13. Install from local checkouts arranged as follows:
-
-```text
-workspace/
-├── access/     # duru checkout
-└── project/    # framework checkout
-```
-
-From `workspace/`:
+Python 3.13. Install the published package from PyPI:
 
 ```sh
-cd project
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install -e ../access -e '.[mcp,grpc]'
+python -m pip install 'galmuri[mcp,grpc]'
 
 python -m galmuri new ./example
 cd example
@@ -341,9 +332,14 @@ See the [reference](guides/reference.md) for detailed recovery and store-cleanup
 
 ## Development
 
-From the framework checkout:
+Clone the repositories next to each other for source development:
 
 ```sh
+git clone https://github.com/imguno/duru.git access
+git clone https://github.com/imguno/galmuri.git project
+cd project
+python3 -m venv .venv
+. .venv/bin/activate
 python -m pip install -e ../access -e '.[mcp,grpc,postgres,dev]'
 python -m pytest -q
 python -m ruff check src tests tools

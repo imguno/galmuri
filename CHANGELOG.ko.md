@@ -2,7 +2,7 @@
 
 [English](CHANGELOG.md) · 한국어
 
-## 미출시 — 첫 개발자 프리뷰
+## 0.1.0 — 2026-10-18
 
 - Galmuri: 앱 스켈레톤, 교체 가능한 파서·처리 함수, 선형 단계 파이프라인.
 - Duru: 독립적인 로컬·Google Drive·Slack 리소스 접근.

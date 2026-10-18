@@ -2,7 +2,7 @@
 
 English · [한국어](CHANGELOG.ko.md)
 
-## Unreleased — initial development preview
+## 0.1.0 — 2026-10-18
 
 - Galmuri: generated apps, replaceable parsing/processing and linear step pipelines.
 - Duru: independent local, Google Drive and Slack resource access.

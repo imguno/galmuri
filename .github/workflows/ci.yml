@@ -103,7 +103,7 @@ jobs:
         run: python -m pytest -q --junitxml=.verification/reports/pytest.xml
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: linux-python-${{ matrix.python }}-reports
           path: |
@@ -148,7 +148,7 @@ jobs:
         run: python -m pytest -q --junitxml=.verification/reports/pytest.xml
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: windows-python-3.13-reports
           path: framework/.verification/reports/pytest.xml
@@ -187,7 +187,7 @@ jobs:
         run: python -m tools.release --resource-access ../access --output .verification/release
       - name: Upload package verification reports
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: package-verification
           path: |
@@ -229,7 +229,7 @@ jobs:
         run: python -m tools.dependency_audit --output .verification/reports/dependency-audit.json
       - name: Upload dependency audit reports
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dependency-audit
           path: |

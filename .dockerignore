@@ -1,0 +1,17 @@
+.git
+.venv
+__pycache__
+.pytest_cache
+.ruff_cache
+build
+dist
+*.egg-info
+.runtime
+.verification
+docs
+.secrets
+.env
+.env.*
+*.token
+*.pem
+*.key

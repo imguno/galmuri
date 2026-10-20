@@ -1,0 +1,151 @@
+"""Operation-owned PostgreSQL connections with serialized metadata writers.
+
+The first backend deliberately uses one transaction advisory lock per schema,
+matching SQLite's writer serialization. It is not a row-level scaling backend.
+"""
+
+import hashlib
+import json
+import math
+from contextlib import contextmanager
+from contextvars import ContextVar
+
+from galmuri.storage.errors import StorageError
+from galmuri.storage.identifiers import identifier
+from galmuri.storage.postgres_rows import row_factory
+from galmuri.storage.postgres_sql import Connection
+
+
+def _driver():
+    try:
+        import psycopg
+    except ImportError:
+        raise StorageError("Install galmuri[postgres] to use PostgreSQL") from None
+    return psycopg
+
+
+class PostgresDatabase:
+    def __init__(
+        self,
+        dsn: str,
+        *,
+        schema: str = "public",
+        connect_timeout=30,
+        lock_timeout=30,
+        statement_timeout=30,
+    ):
+        self.schema = identifier(schema)
+        for value in (connect_timeout, lock_timeout, statement_timeout):
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError("Database timeouts must be finite positive seconds")
+            if not math.isfinite(value) or value <= 0 or value > 86400:
+                raise ValueError("Database timeouts must be finite positive seconds up to 86400")
+        self._connect_timeout = math.ceil(connect_timeout)
+        self._lock_timeout = max(1, math.ceil(lock_timeout * 1000))
+        self._statement_timeout = max(1, math.ceil(statement_timeout * 1000))
+        driver = _driver()
+        try:
+            details = driver.conninfo.conninfo_to_dict(dsn)
+            resolved = {
+                item.keyword.decode(): item.val.decode()
+                for item in driver.pq.Conninfo.get_defaults()
+                if item.val is not None
+            } | details
+            if resolved.get("service"):
+                raise ValueError("Use an explicit PostgreSQL host/database configuration")
+        except Exception:
+            raise StorageError("Invalid PostgreSQL connection configuration") from None
+        self._dsn = dsn
+        physical = {
+            "host": resolved.get("host", ""),
+            "hostaddr": resolved.get("hostaddr", ""),
+            "port": resolved.get("port", "5432"),
+            "dbname": resolved.get("dbname") or resolved.get("user", ""),
+            "schema": self.schema,
+        }
+        self.identity = "postgres:" + json.dumps(physical, sort_keys=True, separators=(",", ":"))
+        # Advisory locks are already scoped to a database. Host aliases and
+        # rotated credentials must still select the same schema writer lock.
+        digest = hashlib.sha256(("framework:metadata-writer:" + self.schema).encode()).digest()[:8]
+        self._lock = int.from_bytes(digest, signed=True)
+        self._current = ContextVar(f"postgres_operation_{id(self)}", default=None)
+        self._target = {key: value for key, value in physical.items() if key != "schema"}
+
+    @property
+    def integrity_errors(self):
+        return (_driver().IntegrityError,)
+
+    @contextmanager
+    def _operation(self, *, write: bool):
+        driver = _driver()
+        try:
+            raw = driver.connect(
+                self._dsn,
+                **self._target,
+                autocommit=True,
+                row_factory=row_factory,
+                connect_timeout=self._connect_timeout,
+            )
+        except Exception:
+            raise StorageError("Could not connect to PostgreSQL") from None
+        with raw:
+            with raw.transaction():
+                raw.execute(f"SET LOCAL lock_timeout TO '{self._lock_timeout}ms'")
+                raw.execute(f"SET LOCAL statement_timeout TO '{self._statement_timeout}ms'")
+                if not write:
+                    raw.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                else:
+                    raw.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
+                    raw.execute("SELECT pg_advisory_xact_lock(%s)", (self._lock,))
+                raw.execute('SET LOCAL search_path TO "' + self.schema + '"')
+                connection = Connection(raw)
+                token = self._current.set(connection)
+                try:
+                    yield connection
+                finally:
+                    self._current.reset(token)
+
+    @contextmanager
+    def connection(self):
+        with self._operation(write=False) as connection:
+            yield connection
+
+    snapshot = connection
+
+    @contextmanager
+    def transaction(self):
+        with self._operation(write=True) as connection:
+            yield connection
+
+    def initialize(self, schema: str):
+        statement = schema.replace(
+            "INTEGER PRIMARY KEY AUTOINCREMENT",
+            "BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY",
+        )
+        with self.transaction() as connection:
+            connection.execute('CREATE SCHEMA IF NOT EXISTS "' + self.schema + '"')
+            connection.execute(statement)
+
+    def columns(self, connection, table: str) -> set[str]:
+        identifier(table)
+        rows = connection.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema=? AND table_name=?",
+            (self.schema, table),
+        )
+        return {row["column_name"] for row in rows}
+
+    def now(self) -> float:
+        connection = self._current.get()
+        if connection is not None:
+            return self._timestamp(connection)
+        with self.connection() as connection:
+            return self._timestamp(connection)
+
+    @staticmethod
+    def _timestamp(connection):
+        return float(
+            connection.execute("SELECT EXTRACT(EPOCH FROM clock_timestamp())").fetchone()[0]
+        )
+
+    clock = now

@@ -1,0 +1,148 @@
+name: Publish Galmuri release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-galmuri-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.repository == 'imguno/galmuri' && !github.event.release.draft
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  build:
+    name: Verify and select release distributions
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: framework
+    steps:
+      - name: Check out the release tag
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          path: framework
+          persist-credentials: false
+      - name: Check out the reviewed companion commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: ${{ vars.RESOURCE_ACCESS_REPOSITORY }}
+          ref: ${{ vars.RESOURCE_ACCESS_REF }}
+          path: access
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+      - name: Require the declared version and verified commit
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        shell: python
+        run: |
+          import os
+          import subprocess
+          import tomllib
+          from pathlib import Path
+
+          project = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]
+          if project["name"] != "galmuri" or os.environ["RELEASE_TAG"] != "v" + project["version"]:
+              raise SystemExit("Release tag must equal v plus the Galmuri project version")
+          commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          if commit != os.environ["RELEASE_COMMIT"]:
+              raise SystemExit("The tag no longer points to the verified release commit")
+      - name: Install release verification dependencies
+        run: python -m pip install -e ../access -e '.[dev,release,mcp,grpc,postgres]'
+      - name: Require the tested Duru version to be published first
+        shell: python
+        run: |
+          import json
+          import tomllib
+          from pathlib import Path
+          from urllib.parse import quote
+          from urllib.request import Request, urlopen
+
+          companion = tomllib.loads(Path("../access/pyproject.toml").read_text())["project"]
+          if companion["name"] != "duru":
+              raise SystemExit("The configured companion must be Duru")
+          version = companion["version"]
+          request = Request(
+              "https://pypi.org/pypi/duru/" + quote(version, safe="") + "/json",
+              headers={"User-Agent": "Galmuri release verification"},
+          )
+          with urlopen(request, timeout=30) as response:
+              published = json.load(response)
+          if published["info"]["name"] != "duru" or published["info"]["version"] != version:
+              raise SystemExit("Publish the tested Duru version before releasing Galmuri")
+      - name: Build and verify fresh wheel and source installations
+        run: python -m tools.release --resource-access ../access --output .verification/release
+      - name: Select only the verified Galmuri distributions
+        shell: python
+        run: |
+          import shutil
+          import tomllib
+          from pathlib import Path
+          from packaging.utils import parse_sdist_filename, parse_wheel_filename
+          from packaging.version import Version
+
+          version = Version(tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"])
+          selected = []
+          for path in Path(".verification/release").iterdir():
+              if path.suffix == ".whl":
+                  name, found_version, *_ = parse_wheel_filename(path.name)
+              elif path.name.endswith(".tar.gz"):
+                  name, found_version = parse_sdist_filename(path.name)
+              else:
+                  continue
+              if name == "galmuri":
+                  if found_version != version:
+                      raise SystemExit("Distribution version differs from the release version")
+                  selected.append(path)
+          if len(selected) != 2 or sum(path.suffix == ".whl" for path in selected) != 1:
+              raise SystemExit("Expected exactly one verified Galmuri wheel and one source archive")
+          destination = Path(".verification/publish")
+          destination.mkdir()
+          for path in selected:
+              shutil.copyfile(path, destination / path.name)
+      - name: Upload only the distributions to publish
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: galmuri-distributions
+          path: |
+            framework/.verification/publish/*.whl
+            framework/.verification/publish/*.tar.gz
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish to PyPI with trusted publishing
+    needs: build
+    if: github.repository == 'imguno/galmuri' && github.event_name == 'release'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/galmuri
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download the verified release distributions
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: galmuri-distributions
+          path: dist
+      - name: Publish using the configured PyPI trusted publisher
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        with:
+          packages-dir: dist/

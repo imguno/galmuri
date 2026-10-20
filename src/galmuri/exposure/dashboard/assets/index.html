@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Document workspace</title><link rel="stylesheet" href="/dashboard/assets/style.css">
+<script src="/dashboard/assets/app.js" defer></script></head>
+<body>
+<header><a class="brand" href="/dashboard"><span class="mark">D</span> Document workspace</a>
+<div class="identity"><span id="identity">Public access</span><button id="logout" hidden>Sign out</button></div></header>
+<div class="workspace"><aside><p class="eyebrow">WORKSPACE</p><nav>
+<button class="nav active" data-panel="explorer">Documents</button>
+<button class="nav" data-panel="tokens">MCP credentials</button>
+<button class="nav admin-only" data-panel="accounts" hidden>Accounts &amp; groups</button>
+<button class="nav admin-only" data-panel="permissions" hidden>Document permissions</button>
+<button class="nav admin-only" data-panel="operations" hidden>Operations</button>
+</nav><p class="aside-note">Published documents from your connected sources. Access follows each document’s policy.</p></aside>
+<main><div id="notice" role="status" aria-live="polite"></div>
+<section id="login-panel" class="card login"><div><p class="eyebrow">ACCOUNT ACCESS</p><h2>Sign in to your workspace</h2>
+<p>Public documents are available below. Sign in for your groups, protected documents and personal MCP credentials.</p></div>
+<form id="login"><label>Username<input id="username" autocomplete="username" required maxlength="256"></label>
+<label>Password<input id="password" type="password" autocomplete="current-password" required minlength="15" maxlength="1024"></label>
+<button type="submit" class="primary">Sign in</button></form></section>
+<section id="explorer" class="panel"><div class="heading"><div><p class="eyebrow">CONNECTED KNOWLEDGE</p><h1>Documents</h1>
+<p>Explore the current published versions you can access.</p></div><button id="refresh-documents">Refresh</button></div>
+<div class="toolbar"><label>Source<select id="source"></select></label><form id="filter-documents"><label>Find a document<input id="document-query" placeholder="Filter by name or key" maxlength="1024"></label><button>Find</button></form></div>
+<div class="card table-wrap"><table><thead><tr><th>Document</th><th>Version</th><th></th></tr></thead><tbody id="documents"></tbody></table>
+<p id="documents-empty" class="empty" hidden>No documents available in this source.</p></div>
+<div class="pager"><button id="previous-page">Previous</button><span id="page-label"></span><button id="next-page">Next</button></div>
+<article id="document-preview" class="card" hidden><div class="heading"><div><h2 id="document-title"></h2><p id="document-location"></p></div><button id="close-preview">Close</button></div>
+<label>Document content<textarea id="document-content" rows="14" readonly></textarea></label>
+<p id="document-version" class="muted"></p><button id="write-document" class="primary" hidden>Save to source</button>
+<p class="muted">Saving uses the version you opened. A changed source must be read again before retrying.</p></article></section>
+<section id="tokens" class="panel" hidden><p class="eyebrow">INTEGRATIONS</p><h1>MCP credentials</h1><p>Create a personal credential for an MCP host. Permissions remain limited by your account and document policies.</p>
+<div class="card"><h2>Create a credential</h2><form id="create-token" class="form-grid"><label>Name<input id="token-name" required maxlength="256" placeholder="My assistant"></label>
+<label>Lifetime (days)<input id="token-days" type="number" min="1" max="365" value="30" required></label>
+<label>Source apps<input id="token-apps" value="*" placeholder="* or comma-separated app names" required></label>
+<fieldset><legend>Scopes</legend><label class="check"><input id="scope-read" type="checkbox" checked> Read</label><label class="check"><input id="scope-write" type="checkbox"> Write</label><label class="check"><input id="scope-manage" type="checkbox"> Manage</label></fieldset>
+<button class="primary">Create credential</button></form>
+<div id="token-secret-panel" class="secret" hidden><strong>Copy this credential now. It is shown once.</strong><code id="token-secret"></code><button id="dismiss-secret">I saved it</button></div></div>
+<div class="card table-wrap"><table><thead><tr><th>Name</th><th>Scopes / apps</th><th>State / expiry</th><th></th></tr></thead><tbody id="token-list"></tbody></table></div>
+<div class="card"><h2>Change password</h2><form id="change-password"><label>New password<input id="new-password" type="password" autocomplete="new-password" minlength="15" maxlength="1024" required></label><button>Change and sign out</button></form></div></section>
+<section id="accounts" class="panel" hidden><p class="eyebrow">ACCOUNT DIRECTORY</p><h1>Accounts &amp; groups</h1>
+<div class="columns"><div class="card"><h2>Create an account</h2><form id="create-user"><label>Username<input id="new-username" required maxlength="256" autocomplete="off"></label><label>Initial password<input id="initial-password" type="password" minlength="15" maxlength="1024" autocomplete="new-password" required></label><label class="check"><input id="new-administrator" type="checkbox"> Account administrator</label><label id="root-grant" class="check" hidden><input id="new-root" type="checkbox"> Root account (document policy override)</label><button class="primary">Create account</button></form></div>
+<div class="card"><h2>Create a group</h2><form id="create-group"><label>Name<input id="group-name" required maxlength="256"></label><button class="primary">Create group</button></form></div></div>
+<div class="card table-wrap"><h2>Accounts</h2><table><thead><tr><th>Username / ID</th><th>Role</th><th>State</th><th></th></tr></thead><tbody id="user-list"></tbody></table></div>
+<div class="card"><h2>Group membership</h2><div class="toolbar"><label>Group<select id="group-select"></select></label><label>Account<select id="member-select"></select></label><button id="add-member">Add to group</button></div><ul id="members" class="members"></ul></div></section>
+<section id="permissions" class="panel" hidden><p class="eyebrow">DOCUMENT POLICY</p><h1>Document permissions</h1><p>Administrative inventory contains identifiers and policy metadata. Content still requires read permission.</p>
+<div class="toolbar"><label>Source<select id="permission-source"></select></label><button id="refresh-permissions">Refresh policies</button></div>
+<div class="card table-wrap"><table><thead><tr><th>Document</th><th>Readers</th><th>Writers</th><th></th></tr></thead><tbody id="permission-list"></tbody></table></div>
+<div class="pager"><button id="previous-policy-page">Previous</button><span id="policy-page-label"></span><button id="next-policy-page">Next</button></div>
+<form id="permission-editor" class="card" hidden><h2 id="permission-title"></h2><div class="columns"><fieldset><legend>Readers</legend><label class="check"><input id="public-read" type="checkbox"> Everyone (including anonymous)</label><div id="read-grants"></div></fieldset><fieldset><legend>Writers</legend><label class="check"><input id="public-write" type="checkbox"> Everyone (source must support writes)</label><div id="write-grants"></div></fieldset></div><p class="muted">No selections means explicitly denied. Changes apply to the current publication immediately.</p><button class="primary">Save permissions</button></form></section>
+<section id="operations" class="panel" hidden><p class="eyebrow">RUNTIME</p><h1>Operations</h1><div class="toolbar"><label>Source<select id="operation-source"></select></label><button data-operation="status">Refresh status</button><button data-operation="collect">Collect now</button><button data-operation="pause">Pause</button><button data-operation="resume">Resume</button></div><pre id="operation-result" class="card"></pre></section>
+</main></div></body></html>
